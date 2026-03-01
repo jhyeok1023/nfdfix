@@ -1,8 +1,9 @@
 [package]
 name = "nfdfix"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Fix NFD-normalized filenames on Linux"
+authors = ["zenru1023"]
 license = "BSD-3-Clause"
 repository = "https://github.com/zenru1023/nfdfix"
 

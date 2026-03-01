@@ -5,14 +5,14 @@ use std::path::PathBuf;
 #[command(name = "nfdfix")]
 #[command(about = "Fix macOS NFD-normalized filenames")]
 pub struct Cli {
-    // Target path (file or directory)
+    /// Target path (file or directory)
     pub path: PathBuf,
 
-    // Recursive scan
+    /// Recursive scan
     #[arg(short, long)]
     pub recursive: bool,
 
-    // Dry run (do not rename)
+    /// Dry run (do not rename)
     #[arg(long)]
     pub dry_run: bool,
 }
