@@ -2,8 +2,15 @@
 name = "nfdfix"
 version = "0.1.0"
 edition = "2024"
-description = "A Rust library for fixing NFD (Normalization Form D) strings."
+description = "Fix macOS NFD-normalized filenames on Linux"
 license = "BSD-3-Clause"
 repository = "https://github.com/zenru1023/nfdfix"
 
 [dependencies]
+unicode-normalization = "0.1.25"
+walkdir = "2.5.0"
+clap = { version = "4.5.60", features = ["derive"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
