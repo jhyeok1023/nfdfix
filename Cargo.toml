@@ -2,7 +2,7 @@
 name = "nfdfix"
 version = "0.1.0"
 edition = "2024"
-description = "Fix macOS NFD-normalized filenames on Linux"
+description = "Fix NFD-normalized filenames on Linux"
 license = "BSD-3-Clause"
 repository = "https://github.com/zenru1023/nfdfix"
 
