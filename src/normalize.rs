@@ -1,11 +1,19 @@
+use std::path::{Component, Path, PathBuf};
 use unicode_normalization::UnicodeNormalization;
 
-pub fn to_nfc(name: &std::path::Path) -> std::path::PathBuf {
-    let file_name = name.file_name().unwrap().to_string_lossy();
-    let normalized: String = file_name.nfc().collect();
+pub fn to_nfc(path: &Path) -> std::path::PathBuf {
+    let mut result = PathBuf::new();
 
-    let mut new_path = name.to_path_buf();
-    new_path.set_file_name(normalized);
+    for component in path.components() {
+        match component {
+            Component::Normal(name) => match name.to_str() {
+                Some(s) => result.push(s.nfc().collect::<String>()),
+                None => result.push(name),
+            },
 
-    new_path
+            other => result.push(other),
+        }
+    }
+
+    result
 }

@@ -2,27 +2,37 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 pub fn scan(path: &Path, recursive: bool) -> Vec<PathBuf> {
-    let mut files = Vec::new();
+    let mut entries = Vec::new();
 
     if path.is_file() {
-        files.push(path.to_path_buf());
-    } else if path.is_dir() {
-        if recursive {
-            for entry in WalkDir::new(path) {
-                let entry = entry.unwrap();
-                if entry.file_type().is_file() {
-                    files.push(entry.path().to_path_buf());
+        entries.push(path.to_path_buf());
+        return entries;
+    }
+
+    if !path.is_dir() {
+        return entries;
+    }
+
+    if recursive {
+        for entry in WalkDir::new(path).sort_by_file_name() {
+            match entry {
+                Ok(e) => entries.push(e.path().to_path_buf()),
+                Err(e) => eprintln!("scan error: {}", e),
+            }
+        }
+    } else {
+        match std::fs::read_dir(path) {
+            Ok(dir) => {
+                for entry in dir {
+                    match entry {
+                        Ok(e) => entries.push(e.path().to_path_buf()),
+                        Err(e) => eprintln!("scan error: {}", e),
+                    }
                 }
             }
-        } else {
-            for entry in std::fs::read_dir(path).unwrap() {
-                let entry = entry.unwrap();
-                if entry.path().is_file() {
-                    files.push(entry.path());
-                }
-            }
+            Err(e) => eprintln!("scan error: {}", e),
         }
     }
 
-    files
+    entries
 }
