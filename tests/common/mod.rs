@@ -97,6 +97,10 @@ pub fn fixture_names() -> Vec<String> {
         names.push(link(stem));
     }
     names.push(format!("sub_{HANGEUL_NFD}"));
+    // Not written by a fixture builder: the tool creates it when the recursive
+    // rename reaches the nested directory. A name the tool produces lands on
+    // disk like any other and has to clear the same platform check.
+    names.push(format!("sub_{HANGEUL_NFC}"));
     names.push(SCAN_ROOT.to_string());
     // Hand-maintained, so the guarantee above is only as good as this block: a
     // name written straight into a test file has to be repeated here or it
@@ -415,12 +419,30 @@ impl Run {
     }
 
     /// The error count out of the `N scanned, M renamed, K errors` summary.
-    pub fn reported_errors(&self) -> Option<usize> {
-        self.stdout
+    ///
+    /// Panics instead of returning `None` when the summary cannot be read. A
+    /// silent `None` reads at the call site as a failure of the thing being
+    /// measured, so a change to the summary format would be reported as a
+    /// wrong error count rather than as an unreadable one. Both panics carry
+    /// the text they failed on.
+    pub fn reported_errors(&self) -> usize {
+        let summary = self
+            .stdout
             .lines()
             .find(|l| l.trim_end().ends_with(" errors"))
-            .and_then(|l| l.split_whitespace().nth(4))
+            .unwrap_or_else(|| {
+                panic!(
+                    "stdout has no `N scanned, M renamed, K errors` summary line:\n{}",
+                    self.stdout
+                )
+            });
+        summary
+            .split_whitespace()
+            .nth(4)
             .and_then(|t| t.parse().ok())
+            .unwrap_or_else(|| {
+                panic!("could not read an error count out of the summary line: {summary:?}")
+            })
     }
 }
 
@@ -555,9 +577,15 @@ pub fn assert_distinct_entries(dir: &Path, expected: &[&str]) {
 /// Every regular-file body found anywhere under `root`.
 ///
 /// Collision tests assert on surviving data, never on the names the tool
-/// chose. A fix has to pick some collision-avoidance scheme and that choice is
-/// not this branch's to make; "both payloads still exist" stays true whatever
-/// it settles on.
+/// chose. What this branch declines to pin is the naming policy: whether a
+/// conflicting `가.txt` becomes `가 (1).txt` or `가.txt.1`, or the rename is
+/// refused outright, is a fix's call to make, and "both payloads still exist"
+/// stays true whatever it settles on.
+///
+/// That freedom covers names only. It does not extend to reporting success for
+/// work that did not happen: a run that skips a conflict still has to say so.
+/// The collision tests pin that separately, through the exit code and the
+/// rename count, and those assertions are deliberate rather than incidental.
 pub fn surviving_contents(root: &Path) -> BTreeSet<String> {
     walkdir::WalkDir::new(root)
         .into_iter()
