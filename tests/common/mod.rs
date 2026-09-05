@@ -98,9 +98,18 @@ pub fn fixture_names() -> Vec<String> {
     }
     names.push(format!("sub_{HANGEUL_NFD}"));
     names.push(SCAN_ROOT.to_string());
+    // Hand-maintained, so the guarantee above is only as good as this block: a
+    // name written straight into a test file has to be repeated here or it
+    // escapes the platform check. 0.4.0 should have `write_file`, `make_dir`
+    // and `make_file_symlink` register what they create, which removes the
+    // second place to write it. Doing that now would widen this branch past
+    // the fixtures it exists to add.
     names.push("target.txt".to_string());
     names.push("payload.txt".to_string());
     names.push("keep.txt".to_string());
+    names.push("child.txt".to_string());
+    names.push("probe-target.txt".to_string());
+    names.push("probe.link".to_string());
     names
 }
 

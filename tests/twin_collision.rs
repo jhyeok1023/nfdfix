@@ -376,11 +376,18 @@ fn nfd_symlink_must_not_clobber_its_nfc_regular_file_twin() {
 /// Passes today, and is the one thing the tool gets right here. Pinned so a
 /// fix for the case above cannot "solve" it by dereferencing links or by
 /// refusing to touch them at all.
+///
+/// Gated on twins even though the fixture plants no twin. The first assertion
+/// below is an absence check, and on a normalization-insensitive filesystem a
+/// lookup by the NFD name still resolves to the entry now stored under the NFC
+/// name, so a perfectly correct rename would come back as `Ok` and the test
+/// would blame the tool. Every assertion that an NFD name is gone needs a
+/// filesystem on which the two names are two entries.
 #[test]
 #[cfg(any(unix, windows))]
 fn lone_nfd_symlink_is_renamed_as_a_link_with_target_intact() {
     const TEST: &str = "lone_nfd_symlink_is_renamed_as_a_link_with_target_intact";
-    require_exact_names(TEST);
+    require_twins(TEST);
     require_symlinks(TEST);
 
     let dir = fixture();

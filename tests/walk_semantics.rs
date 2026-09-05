@@ -115,16 +115,32 @@ fn build_ancestor_fixture(root: &Path) -> std::path::PathBuf {
     scan_root
 }
 
-/// The stdout check is primary: the tool prints `renamed:` whatever the
-/// filesystem then does with the call, so it holds on Linux, on Windows, and
-/// on macOS APFS, where renaming to an equivalent name is implementation
-/// defined.
+/// The output checks are primary: the tool announces every rename it attempts,
+/// `renamed:` on stdout when the call returned Ok and `rename failed:` on
+/// stderr when it did not, so they hold on Linux, on Windows, and on macOS
+/// APFS, where renaming to an equivalent name is implementation defined.
+///
+/// Both are needed. What is wrong here is that the ancestor is walked at all,
+/// and a scope fix that leaves the component walk in place can end up
+/// attempting the rename and failing it: no `renamed:` line is printed and the
+/// directory is still there, so the entry check below waves it through and the
+/// defect looks fixed. That is exactly the shape a careless narrowing takes.
 fn assert_ancestor_untouched(root: &Path, run: &Run) {
     let ancestor = OsStr::new(GA_NFD);
     assert!(
         !run.renamed_source_names().iter().any(|n| n == ancestor),
         "the tool renamed [{}], a directory above the path it was asked to \
          scan.\n{}",
+        codepoints(GA_NFD),
+        run.debug()
+    );
+    assert!(
+        !run.failure_source_paths()
+            .into_iter()
+            .any(|p| Path::new(p).file_name() == Some(ancestor)),
+        "the tool tried to rename [{}], a directory above the path it was \
+         asked to scan, and merely failed to. Out-of-scope paths must not be \
+         attempted at all.\n{}",
         codepoints(GA_NFD),
         run.debug()
     );
