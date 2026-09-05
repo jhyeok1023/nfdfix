@@ -37,6 +37,23 @@ nfdfix -r mydir
 nfdfix --dry-run mydir
 ```
 
+## Exit codes
+`nfdfix` is meant to be driven from scripts, so it distinguishes a run that
+failed from a run that refused to act.
+
+| Code | Meaning |
+|---|---|
+| `0` | Nothing went wrong. Every NFD name that needed normalizing was renamed. |
+| `1` | At least one rename was attempted and failed. |
+| `2` | Nothing failed, but at least one rename was skipped because the NFC name was already taken by another entry. |
+
+A name conflict is never resolved by overwriting: the existing entry is left
+alone, the NFD name stays as it is, and a `skipped:` line naming both paths is
+written to standard error. `--dry-run` reports the same codes, so it can be used
+as a pre-flight conflict check.
+
+Errors outrank skips. A run with both reports `1`.
+
 ## Dependencies and Licenses
 
 - [clap](https://crates.io/crates/clap) - MIT or Apache-2.0
