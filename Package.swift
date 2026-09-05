@@ -4,16 +4,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "NFDFix",
+    name: "nfdfix",
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
+        .target(name: "NFDFixCore"),
         .executableTarget(
-            name: "NFDFix"
+            name: "nfdfix",
+            dependencies: ["NFDFixCore"]
         ),
         .testTarget(
-            name: "NFDFixTests",
-            dependencies: ["NFDFix"]
+            name: "NFDFixCoreTests",
+            dependencies: ["NFDFixCore"]
         ),
     ],
     swiftLanguageModes: [.v6]
