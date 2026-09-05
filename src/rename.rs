@@ -17,6 +17,16 @@ pub enum Outcome {
 pub fn apply(old: &Path, new: &Path, dry_run: bool) -> Outcome {
     match guard(old, new) {
         Guard::Clear => {}
+        // Split out from `Clear` so the one case that needs a rename of a
+        // different shape has a branch of its own to be given one. Nothing is
+        // done differently here yet, and that is a known hole: POSIX defines
+        // `rename` between two names for the same entry as a successful no-op,
+        // so the call below returns Ok having normalized nothing and this
+        // still reports `Renamed` -- on APFS, the platform the case exists to
+        // serve, every time. Making the rename land is
+        // fix/apfs-two-stage-rename's work and confirming it landed is
+        // fix/verify-after-rename's. Here the case is only told apart.
+        Guard::SameEntry => {}
         Guard::Conflict => {
             eprintln!(
                 "skipped: {} -> {}: destination already exists",
@@ -25,7 +35,7 @@ pub fn apply(old: &Path, new: &Path, dry_run: bool) -> Outcome {
             );
             return Outcome::Skipped;
         }
-        // Not a name conflict. Exit code 2 is defined as "nothing failed", and
+        // Not a name conflict. Exit code 3 is defined as "nothing failed", and
         // a path that cannot be read is a failure, so this counts as one. It
         // keeps the `rename failed:` prefix so the failures printed still add
         // up to the error count in the summary line.
@@ -66,6 +76,12 @@ pub fn apply(old: &Path, new: &Path, dry_run: bool) -> Outcome {
 enum Guard {
     /// Nothing is in the way; the rename may go ahead.
     Clear,
+    /// The destination resolves to the source itself, which is what a
+    /// normalization-insensitive filesystem does with an NFD name whose entry
+    /// is stored under the NFC form. Not a collision, and not `Clear` either:
+    /// a plain `fs::rename` between two names for one entry changes nothing
+    /// and reports success.
+    SameEntry,
     /// The destination is a different entry that already exists.
     Conflict,
     /// Whether the destination is in the way could not be determined. The
@@ -101,9 +117,11 @@ fn guard(old: &Path, new: &Path) -> Guard {
     // On a normalization-insensitive filesystem such as macOS APFS, the NFD
     // name resolves to the entry already stored under the NFC name, so the
     // destination is the source. That is the rename this tool exists to
-    // perform, not a collision.
+    // perform, not a collision -- but it is not an ordinary rename either,
+    // which is why it is reported apart from `Clear` rather than folded into
+    // it. On Linux the same answer comes back for two hard links to one file.
     match fs::symlink_metadata(old) {
-        Ok(source) if is_same_file(&source, &dest) => Guard::Clear,
+        Ok(source) if is_same_file(&source, &dest) => Guard::SameEntry,
         Ok(_) => Guard::Conflict,
         // `new` is known to exist by this point, and whether it is the same
         // entry as `old` is exactly what could not be determined. Letting

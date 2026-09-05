@@ -90,10 +90,15 @@ fn main() {
         println!("\nNo files were renamed or errors occurred.");
     }
 
+    // 3, not 2: clap exits 2 on a usage error, before any of this runs. A
+    // script reading 2 as "a rename was skipped" would read a mistyped flag as
+    // a name conflict on a tree the tool never touched. Overriding clap's code
+    // instead would put the contract in a dependency's hands, where a later
+    // clap release can move it.
     std::process::exit(if errors > 0 {
         1
     } else if skipped_count > 0 {
-        2
+        3
     } else {
         0
     });
