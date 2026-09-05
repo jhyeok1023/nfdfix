@@ -2,15 +2,18 @@
 name = "nfdfix"
 version = "0.2.0"
 edition = "2024"
-description = "Fix NFD-normalized filenames on Linux"
-authors = ["zenru1023"]
+description = "Fix NFD-normalized filenames"
+authors = ["jhyeok1023"]
 license = "BSD-3-Clause"
-repository = "https://github.com/zenru1023/nfdfix"
+repository = "https://github.com/jhyeok1023/nfdfix"
 
 [dependencies]
 unicode-normalization = "0.1.25"
 walkdir = "2.5.0"
 clap = { version = "4.5.60", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 lto = true
