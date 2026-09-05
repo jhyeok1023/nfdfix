@@ -16,16 +16,22 @@ fn main() {
     let mut renamed_count = 0;
     let mut skipped_count = 0;
     let total = entries.len();
-    // Components already handled that now carry their NFC name, so descendants
-    // must be rebuilt against it.
+    // Components already renamed, so a descendant has to be rebuilt against
+    // the NFC name they now carry.
     let mut processed: HashSet<PathBuf> = HashSet::new();
-    // Components already handled that kept the name they had. Rebuilding a
-    // descendant against the NFC form would name a path that was never
-    // created; holding them here also keeps a skipped directory from being
+    // Components that kept the name they had, because the rename was skipped
+    // over a conflict or failed. A descendant has to be rebuilt against that
+    // name: the NFC form was never created, so normalizing it into the path
+    // would aim the descendant's rename at whatever entry does hold the NFC
+    // name. Holding them here also keeps one undone directory from being
     // re-reported once per descendant.
     let mut held: HashSet<PathBuf> = HashSet::new();
 
     for entry in entries {
+        // Rebuilt one component at a time, so `current` always names the path
+        // as it stands on disk. Only the component just pushed is a rename
+        // candidate; every ancestor above it has been decided already, which
+        // is why the normalization below is leaf-only.
         let mut current = PathBuf::new();
 
         for component in entry.components() {
@@ -36,11 +42,11 @@ fn main() {
             }
 
             if processed.contains(&current) {
-                current = normalize::to_nfc(&current);
+                current = normalize::leaf_to_nfc(&current);
                 continue;
             }
 
-            let normalized = normalize::to_nfc(&current);
+            let normalized = normalize::leaf_to_nfc(&current);
             if current != normalized {
                 match rename::apply(&current, &normalized, args.dry_run) {
                     Outcome::Renamed => {
@@ -48,10 +54,13 @@ fn main() {
                         processed.insert(current.clone());
                         current = normalized;
                     }
+                    // A failed rename left the name exactly as it was, so it
+                    // is held for the same reason a skipped one is. Advancing
+                    // past it would rebuild every descendant against a
+                    // directory that was never created.
                     Outcome::Failed => {
                         errors += 1;
-                        processed.insert(current.clone());
-                        current = normalized;
+                        held.insert(current.clone());
                     }
                     Outcome::Skipped => {
                         skipped_count += 1;

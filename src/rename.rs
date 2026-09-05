@@ -8,19 +8,36 @@ pub enum Outcome {
     Renamed,
     /// The destination name is taken by another entry; nothing was touched.
     Skipped,
-    /// The rename was attempted and the filesystem refused it.
+    /// The rename did not happen and the reason was not a name conflict:
+    /// either the filesystem refused the call, or the paths involved could not
+    /// be inspected well enough to make the call safely.
     Failed,
 }
 
 pub fn apply(old: &Path, new: &Path, dry_run: bool) -> Outcome {
-    if let Some(reason) = conflict(old, new) {
-        eprintln!(
-            "skipped: {} -> {}: {}",
-            old.display(),
-            new.display(),
-            reason
-        );
-        return Outcome::Skipped;
+    match guard(old, new) {
+        Guard::Clear => {}
+        Guard::Conflict => {
+            eprintln!(
+                "skipped: {} -> {}: destination already exists",
+                old.display(),
+                new.display()
+            );
+            return Outcome::Skipped;
+        }
+        // Not a name conflict. Exit code 2 is defined as "nothing failed", and
+        // a path that cannot be read is a failure, so this counts as one. It
+        // keeps the `rename failed:` prefix so the failures printed still add
+        // up to the error count in the summary line.
+        Guard::Unreadable(reason) => {
+            eprintln!(
+                "rename failed: {} -> {}: {}",
+                old.display(),
+                new.display(),
+                reason
+            );
+            return Outcome::Failed;
+        }
     }
 
     if dry_run {
@@ -45,20 +62,39 @@ pub fn apply(old: &Path, new: &Path, dry_run: bool) -> Outcome {
     }
 }
 
-/// Why `new` cannot be taken, or `None` if the rename may go ahead.
+/// What inspecting the destination found.
+enum Guard {
+    /// Nothing is in the way; the rename may go ahead.
+    Clear,
+    /// The destination is a different entry that already exists.
+    Conflict,
+    /// Whether the destination is in the way could not be determined. The
+    /// string says which inspection failed and why.
+    Unreadable(String),
+}
+
+/// Whether `new` may be taken.
 ///
 /// `fs::rename` replaces an existing destination on every target platform and
 /// reports success, so without this check normalizing an NFD name destroys its
 /// NFC twin silently.
-fn conflict(old: &Path, new: &Path) -> Option<String> {
+///
+/// The check is not atomic. `fs::rename` is a second syscall, so an entry
+/// created at `new` in between is still replaced. Closing that window needs
+/// `renameat2` with `RENAME_NOREPLACE` on Linux, or `MoveFileExW` without
+/// `MOVEFILE_REPLACE_EXISTING` on Windows; `std` exposes neither, and reaching
+/// for them means a per-platform dependency. The race needs another process
+/// writing into the tree mid-run, which is out of scope here, but the window
+/// is real rather than closed.
+fn guard(old: &Path, new: &Path) -> Guard {
     // `symlink_metadata`, not `exists()`: the latter follows symbolic links and
     // so reports `false` for a dangling one, which would let the rename clobber
     // the link.
     let dest = match fs::symlink_metadata(new) {
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return None,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Guard::Clear,
         // The destination could not be inspected. Refuse rather than risk
         // overwriting whatever is behind the error.
-        Err(e) => return Some(format!("cannot inspect the destination: {e}")),
+        Err(e) => return Guard::Unreadable(format!("cannot inspect the destination: {e}")),
         Ok(m) => m,
     };
 
@@ -67,11 +103,13 @@ fn conflict(old: &Path, new: &Path) -> Option<String> {
     // destination is the source. That is the rename this tool exists to
     // perform, not a collision.
     match fs::symlink_metadata(old) {
-        Ok(source) if is_same_file(&source, &dest) => None,
-        // The source could not be stated either. Let `fs::rename` run and
-        // report the real error rather than misfiling it as a name conflict.
-        Err(_) => None,
-        Ok(_) => Some("destination already exists".to_string()),
+        Ok(source) if is_same_file(&source, &dest) => Guard::Clear,
+        Ok(_) => Guard::Conflict,
+        // `new` is known to exist by this point, and whether it is the same
+        // entry as `old` is exactly what could not be determined. Letting
+        // `fs::rename` run would replace an existing entry on the strength of
+        // a check that never completed, so refuse instead.
+        Err(e) => Guard::Unreadable(format!("cannot inspect the source: {e}")),
     }
 }
 

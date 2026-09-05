@@ -49,8 +49,13 @@ failed from a run that refused to act.
 
 A name conflict is never resolved by overwriting: the existing entry is left
 alone, the NFD name stays as it is, and a `skipped:` line naming both paths is
-written to standard error. `--dry-run` reports the same codes, so it can be used
-as a pre-flight conflict check.
+written to standard error.
+
+`--dry-run` reports the same codes, but it is not a complete pre-flight check.
+It inspects the filesystem as it stands, and it performs no renames, so it
+cannot see a conflict that would only appear underneath a directory the real
+run renames first. A `--dry-run` exit of `0` is not a promise that the real run
+will not report `2`.
 
 Errors outrank skips. A run with both reports `1`.
 
